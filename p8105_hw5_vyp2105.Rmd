@@ -3,3 +3,118 @@ title: "P8105 Homework 5"
 author: "Vidhi Patel"
 output: github_document
 ---
+
+
+## Problem 1
+
+### Birthday simulation
+
+```{r}
+# Function to determine whether a group has at least
+# two people sharing the same birthday
+birthday_sim = function(n) {
+  birthdays = sample(1:365, size = n, replace = TRUE)
+  any(duplicated(birthdays))
+}
+
+# Simulate the birthday problem 10,000 times
+# for group sizes from 2 to 50
+set.seed(123)
+
+birthday_results = tibble(
+  group_size = 2:50
+) |>
+  mutate(
+    simulations = map(
+      group_size,
+      ~ replicate(10000, birthday_sim(.x))
+    ),
+    probability = map_dbl(
+      simulations,
+      mean
+    )
+  )
+
+# Plot estimated probabilities
+ggplot(birthday_results,
+       aes(x = group_size, y = probability)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Estimated Probability of Shared Birthdays",
+    x = "Group Size",
+    y = "Estimated Probability"
+  ) +
+  theme_minimal()
+```
+
+### Interpretation
+
+The estimated probability of at least two people sharing a birthday increases as the group size increases. This occurs because larger groups have more possible pairs of individuals, increasing the chance of a shared birthday. The probability reaches approximately 50% with a group of 23 people and continues increasing as the group size grows.
+
+## Problem 2
+
+### Import and tidy the data
+
+```{r}
+library(tidyverse)
+
+# Get the names of all CSV files
+file_names =
+  list.files(
+    path = "data/data",
+    pattern = "\\.csv$",
+    full.names = TRUE
+  )
+
+# Create a dataframe containing filenames and imported data
+study_data =
+  tibble(
+    file_name = file_names,
+    arm = if_else(str_detect(file_names, "con"), "control", "experimental"),
+    subject_id = str_extract(basename(file_names), "\\d+"),
+    data = map(file_names, read_csv)
+  )
+
+# Combine all observations and reshape into tidy format
+study_tidy =
+  study_data |>
+  unnest(data) |>
+  pivot_longer(
+    cols = starts_with("week_"),
+    names_to = "week",
+    values_to = "observation"
+  ) |>
+  mutate(
+    week = factor(week, levels = paste0("week_", 1:8))
+  )
+
+# Display the tidy dataset
+study_tidy
+```
+
+
+### Spaghetti plot
+
+```{r}
+
+study_tidy |>
+  ggplot(
+    aes(
+      x = week,
+      y = observation,
+      group = interaction(arm, subject_id),
+      color = arm
+    )
+  ) +
+  geom_line(alpha = 0.6) +
+  labs(
+    title = "Observations Over Time by Study Arm",
+    x = "Week",
+    y = "Observation",
+    color = "Study Arm"
+  ) +
+  theme_minimal()
+```
+The spaghetti plot suggests that observations in the experimental group generally increase over time, whereas the control group tends to remain at lower levels. Although there is variability among individual participants in both groups, the experimental group shows a more pronounced upward trend, suggesting a potential difference in outcomes between the two study arms.
+
