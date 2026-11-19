@@ -3,6 +3,9 @@ title: "P8105 Homework 5"
 author: "Vidhi Patel"
 output: github_document
 ---
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+```
 
 
 ## Problem 1
@@ -57,7 +60,6 @@ The estimated probability of at least two people sharing a birthday increases as
 ### Import and tidy the data
 
 ```{r}
-library(tidyverse)
 
 # Get the names of all CSV files
 file_names =
@@ -118,3 +120,104 @@ study_tidy |>
 ```
 The spaghetti plot suggests that observations in the experimental group generally increase over time, whereas the control group tends to remain at lower levels. Although there is variability among individual participants in both groups, the experimental group shows a more pronounced upward trend, suggesting a potential difference in outcomes between the two study arms.
 
+# Problem 3
+
+## Simulation
+
+```{r}
+set.seed(123)
+
+n = 30
+sigma = 5
+n_sim = 5000
+
+mu_values = 0:6
+
+simulate_data = function(mu) {
+  x = rnorm(n, mean = mu, sd = sigma)
+
+  broom::tidy(t.test(x, mu = 0)) |>
+    select(estimate, p.value)
+}
+
+simulation_results =
+  expand_grid(
+    mu = mu_values,
+    simulation = 1:n_sim
+  ) |>
+  mutate(
+    results = map(mu, simulate_data)
+  ) |>
+  unnest(results)
+```
+
+
+```{r}
+#Calculate power and average estimates
+
+simulation_summary = simulation_results %>%
+  mutate(reject_null = p.value < 0.05) %>%
+  group_by(mu) %>%
+  summarize(
+    power = mean(reject_null),
+    average_estimate = mean(estimate),
+    average_estimate_rejected = if (any(reject_null)) {
+      mean(estimate[reject_null])
+    } else {
+      NA_real_
+    },
+    .groups = "drop"
+  )
+
+simulation_summary
+
+
+#Plot power versus true mean
+
+simulation_summary %>%
+  filter(mu > 0) %>%
+  ggplot(aes(x = mu, y = power)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = "Power vs. True Mean",
+    x = "True Mean",
+    y = "Power"
+  ) +
+  theme_minimal()
+
+
+#Plot average estimates versus true mean
+
+simulation_summary %>%
+  filter(mu > 0) %>%
+  ggplot(aes(x = mu)) +
+  geom_line(
+    aes(y = average_estimate, color = "All simulations")
+  ) +
+  geom_point(
+    aes(y = average_estimate, color = "All simulations")
+  ) +
+  geom_line(
+    aes(y = average_estimate_rejected, color = "Rejected null")
+  ) +
+  geom_point(
+    aes(y = average_estimate_rejected, color = "Rejected null")
+  ) +
+  geom_abline(
+    intercept = 0,
+    slope = 1,
+    linetype = "dashed"
+  ) +
+  labs(
+    title = "Average Estimates vs. True Mean",
+    x = "True Mean",
+    y = "Average Estimated Mean",
+    color = "Estimate"
+  ) +
+  theme_minimal()
+```
+
+The estimated power increases as the true population mean increases. When the true mean is close to zero, the probability of rejecting the null hypothesis is relatively low. As the true mean increases, the test becomes more likely to detect a statistically significant difference.
+
+The average estimated mean across all simulations is close to the true population mean, indicating that the sample mean is approximately unbiased. However, among simulations where the null hypothesis is rejected, the average estimates tend to be higher than the true mean, particularly for smaller effect sizes. This occurs because selecting only statistically significant results introduces selection bias.
